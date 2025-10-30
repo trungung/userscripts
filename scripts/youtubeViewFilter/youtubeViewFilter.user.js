@@ -8,7 +8,7 @@
 // Configuration
 const CONFIG = {
   viewThreshold: 1000, // Minimum view count threshold
-  enableLogging: true, // Set to false to disable console logs
+  enableLogging: false, // Set to true to enable console logs
   whitelistedChannels: [
     // Add channel names here that should never be filtered
     // Example: "PewDiePie", "MrBeast", "Kurzgesagt"
