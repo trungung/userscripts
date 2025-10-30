@@ -2,6 +2,10 @@
 
 Filter out YouTube videos that fall below a configurable view count threshold, helping you focus on more established content.
 
+> **Version:** 1.0.0  
+> **Last Tested:** October 31, 2025  
+> **Status:** ✅ Working
+
 ## ✨ Features
 
 - **Configurable view threshold** - Set your minimum view count (default: 1000)

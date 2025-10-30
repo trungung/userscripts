@@ -1,8 +1,14 @@
 // ==UserScript==
 // @name        YouTube View Filter
 // @description Remove YouTube videos below view threshold (1000 views)
+// @version     1.0.0
+// @author      trungung
 // @match       *://www.youtube.com/*
 // @grant       none
+// @namespace   https://github.com/trungung/userscripts
+// @homepage    https://github.com/trungung/userscripts/tree/main/scripts/youtubeViewFilter
+// @updateURL   https://raw.githubusercontent.com/trungung/userscripts/main/scripts/youtubeViewFilter/youtubeViewFilter.user.js
+// @downloadURL https://raw.githubusercontent.com/trungung/userscripts/main/scripts/youtubeViewFilter/youtubeViewFilter.user.js
 // ==/UserScript==
 
 // Configuration
