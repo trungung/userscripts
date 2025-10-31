@@ -23,30 +23,31 @@ const CONFIG = {
 
 // Custom logging system
 const logger = {
+  prefix: "[YT-FILTER]",
   log: function (message, ...args) {
     if (CONFIG.enableLogging) {
-      console.log(`[YT-FILTER] ${message}`, ...args);
+      console.log(`${this.prefix} ${message}`, ...args);
     }
   },
   info: function (message, ...args) {
     if (CONFIG.enableLogging) {
-      console.info(`[YT-FILTER] ℹ️ ${message}`, ...args);
+      console.info(`${this.prefix} ℹ️ ${message}`, ...args);
     }
   },
   warn: function (message, ...args) {
     if (CONFIG.enableLogging) {
-      console.warn(`[YT-FILTER] ⚠️ ${message}`, ...args);
+      console.warn(`${this.prefix} ⚠️ ${message}`, ...args);
     }
   },
   debug: function (message, ...args) {
     if (CONFIG.enableLogging) {
-      console.debug(`[YT-FILTER] 🔍 ${message}`, ...args);
+      console.debug(`${this.prefix} 🔍 ${message}`, ...args);
     }
   },
   removed: function (videoTitle, channelName, viewCount) {
     if (CONFIG.enableLogging) {
       console.log(
-        `[YT-FILTER] 🗑️ Removed: "${videoTitle}" by "${channelName}" (${viewCount} views < ${CONFIG.viewThreshold} threshold)`
+        `${this.prefix} 🗑️ Removed: "${videoTitle}" by "${channelName}" (${viewCount} views < ${CONFIG.viewThreshold} threshold)`
       );
     }
   },

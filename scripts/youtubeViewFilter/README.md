@@ -16,23 +16,6 @@ Filter out YouTube videos that fall below a configurable view count threshold, h
 - **Debug logging** - Optional console logging to see what's being filtered
 - **Performance optimized** - Efficient DOM monitoring and processing
 
-## 📦 Installation
-
-### Quick Install
-
-1. Make sure you have [Tampermonkey](https://www.tampermonkey.net/) or [Violentmonkey](https://violentmonkey.github.io/) installed
-2. Click here to install: [youtubeViewFilter.user.js](https://raw.githubusercontent.com/trungung/userscripts/main/scripts/youtubeViewFilter/youtubeViewFilter.user.js)
-3. Click "Install" when your userscript manager opens
-4. Refresh any open YouTube pages
-
-### Manual Install
-
-1. Copy the contents of `youtubeViewFilter.user.js`
-2. Open your userscript manager dashboard
-3. Create a new script
-4. Paste the code and save
-5. Refresh YouTube
-
 ## ⚙️ Configuration
 
 Edit the script in your userscript manager to customize these settings:
@@ -75,36 +58,18 @@ enableLogging: false,
 
 ## 🎬 How It Works
 
-The script:
+**Technical Overview:**
 
-1. Monitors YouTube pages for video elements
-2. Extracts view counts from video metadata
-3. Compares against your threshold
-4. Hides videos below the threshold (unless whitelisted)
-5. Continues monitoring as new content loads
+1. **Monitors the DOM** - Uses `MutationObserver` to watch for new video elements added to the page
+2. **Targets video containers** - Looks for specific YouTube elements: `ytd-rich-item-renderer`, `ytd-video-renderer`, etc.
+3. **Extracts view count** - Searches `aria-label` attributes for view count data (e.g., "Video Title - 70K views - Channel")
+4. **Parses with regex** - Uses pattern matching to extract numbers like "70K", "1.2M", "169 watching" from aria-labels
+5. **Compares to threshold** - If view count < your configured threshold, marks video for removal
+6. **Checks whitelist** - Skips filtering if channel is in your whitelist
+7. **Hides filtered videos** - Sets `display: none` on video elements that don't meet criteria
+8. **Runs on navigation** - Re-processes videos when you navigate to new YouTube pages (it's a Single Page App)
 
-## 🐛 Troubleshooting
-
-### Videos aren't being filtered
-
-1. Check that the script is enabled in your userscript manager
-2. Try refreshing the page (Ctrl/Cmd + R)
-3. Enable logging and check the browser console (F12) for debug info
-4. Make sure your threshold isn't set to 0
-
-### Script not working after YouTube update
-
-YouTube frequently changes their layout. If the script stops working:
-
-1. Check for updates to this script
-2. Open an [issue](https://github.com/trungung/userscripts/issues) with details
-3. Include console errors if any (F12 → Console tab)
-
-### Whitelisted channels still being filtered
-
-- Channel names are case-insensitive but must match partially
-- Try using just part of the channel name
-- Check spelling and whitespace
+**Result:** Low-view videos disappear from your feed in real-time as the page loads.
 
 ## 📝 Console Logging
 
@@ -115,22 +80,6 @@ When `enableLogging` is enabled, you'll see:
 - `🗑️ Removed` - Videos that were filtered (title, channel, view count)
 - `ℹ️ Info` - General status messages
 - `⚠️ Warnings` - Potential issues
-
-## 🔧 Technical Details
-
-**Supported YouTube layouts:**
-
-- Home page feed
-- Search results
-- Shorts feed
-- Watch page recommendations
-- Channel pages
-
-**View count parsing:**
-
-- Handles "1.2K", "500K", "2M" formats
-- Handles "1,234 views" format
-- Handles international number formats
 
 ## 📄 License
 
