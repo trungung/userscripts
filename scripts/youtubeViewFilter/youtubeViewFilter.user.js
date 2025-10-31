@@ -213,6 +213,17 @@ function processExistingVideos() {
   });
 }
 
+function clearAllProcessedFlags() {
+  logger.info("Clearing all processed flags...");
+
+  const allVideos = document.querySelectorAll(
+    '[data-yt-filter-processed="true"]'
+  );
+  allVideos.forEach((video) => {
+    delete video.dataset.ytFilterProcessed;
+  });
+}
+
 function observeAndFilter() {
   // Initial filter for existing videos
   processExistingVideos();
@@ -274,7 +285,8 @@ if (document.readyState === "loading") {
 
 window.addEventListener("yt-navigate-finish", () => {
   logger.info("YouTube navigation detected");
-  // Process any new videos that may have appeared after navigation
+  // Clear all processed flags and re-evaluate videos after navigation
+  clearAllProcessedFlags();
   setTimeout(processExistingVideos, 1000);
 });
 
