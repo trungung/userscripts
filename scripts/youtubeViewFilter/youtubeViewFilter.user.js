@@ -7,8 +7,8 @@
 // @grant       none
 // @namespace   https://github.com/trungung/userscripts
 // @homepage    https://github.com/trungung/userscripts/tree/main/scripts/youtubeViewFilter
-// @updateURL   https://raw.githubusercontent.com/trungung/userscripts/main/scripts/youtubeViewFilter/youtubeViewFilter.user.js
-// @downloadURL https://raw.githubusercontent.com/trungung/userscripts/main/scripts/youtubeViewFilter/youtubeViewFilter.user.js
+// @noframes
+// @license MIT
 // ==/UserScript==
 
 const CONFIG = {
