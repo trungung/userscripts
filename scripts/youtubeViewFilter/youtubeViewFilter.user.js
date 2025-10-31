@@ -11,7 +11,6 @@
 // @downloadURL https://raw.githubusercontent.com/trungung/userscripts/main/scripts/youtubeViewFilter/youtubeViewFilter.user.js
 // ==/UserScript==
 
-// Configuration
 const CONFIG = {
   viewThreshold: 1000, // Minimum view count threshold
   enableLogging: false, // Set to true to enable console logs
@@ -21,7 +20,6 @@ const CONFIG = {
   ],
 };
 
-// Custom logging system
 const logger = {
   prefix: "[YT-FILTER]",
   log: function (message, ...args) {
@@ -53,7 +51,6 @@ const logger = {
   },
 };
 
-// Function to check if a channel is whitelisted
 function isChannelWhitelisted(channelName) {
   if (!channelName) return false;
   return CONFIG.whitelistedChannels.some((whitelisted) =>
@@ -61,7 +58,6 @@ function isChannelWhitelisted(channelName) {
   );
 }
 
-// Function to extract video title from element
 function getVideoTitle(videoElement) {
   const titleSelectors = [
     ".yt-lockup-metadata-view-model__title",
@@ -84,7 +80,6 @@ function getVideoTitle(videoElement) {
   return "Unknown Title";
 }
 
-// Function to extract channel name from element
 function getChannelName(videoElement) {
   const channelSelectors = [
     'a[href*="/@"]',
@@ -111,7 +106,6 @@ function getChannelName(videoElement) {
   return "Unknown Channel";
 }
 
-// Function to parse view count from text
 function parseViewCount(viewText) {
   if (!viewText) return 0;
 
@@ -137,9 +131,7 @@ function parseViewCount(viewText) {
   }
 }
 
-// Function to process a single video element
 function processVideoElement(video) {
-  // Skip if already processed (using data attribute)
   if (video.dataset.ytFilterProcessed === "true") {
     return;
   }
@@ -147,16 +139,14 @@ function processVideoElement(video) {
   // Mark as processed immediately to prevent duplicate processing
   video.dataset.ytFilterProcessed = "true";
 
-  // Get video info
   const videoTitle = getVideoTitle(video);
   const channelName = getChannelName(video);
 
   logger.debug(`Processing: "${videoTitle}" by "${channelName}"`);
 
-  // Check if channel is whitelisted
   if (isChannelWhitelisted(channelName)) {
     logger.debug(`Skipped (whitelisted): "${channelName}"`);
-    return; // Skip this video
+    return;
   }
 
   // Find view count in the metadata - different selectors for different video types
@@ -191,7 +181,6 @@ function processVideoElement(video) {
     }
   });
 
-  // If we found a view count and it's below threshold, remove the video
   if (found && viewCount < CONFIG.viewThreshold) {
     logger.removed(videoTitle, channelName, viewCount);
 
@@ -207,7 +196,6 @@ function processVideoElement(video) {
   }
 }
 
-// Function to process existing videos on page load
 function processExistingVideos() {
   logger.info("Processing existing videos...");
 
@@ -225,7 +213,6 @@ function processExistingVideos() {
   });
 }
 
-// Function to observe DOM changes and filter new content
 function observeAndFilter() {
   // Initial filter for existing videos
   processExistingVideos();
@@ -272,7 +259,6 @@ function observeAndFilter() {
     });
   });
 
-  // Start observing
   observer.observe(document.body, {
     childList: true,
     subtree: true,
@@ -286,7 +272,6 @@ if (document.readyState === "loading") {
   observeAndFilter();
 }
 
-// Also run when navigation occurs (YouTube is a SPA)
 window.addEventListener("yt-navigate-finish", () => {
   logger.info("YouTube navigation detected");
   // Process any new videos that may have appeared after navigation
