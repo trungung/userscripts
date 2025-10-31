@@ -1,6 +1,8 @@
 # YouTube View Filter 🎯
 
-Filter out YouTube videos that fall below a configurable view count threshold, helping you focus on more established content.
+Hides YouTube videos below a configurable view count threshold.
+
+YouTube recently started showing lots of low-quality, AI-generated videos with very few views on the homepage. This script filters them out.
 
 > **Version:** 1.0.0  
 > **Last Tested:** October 31, 2025  
