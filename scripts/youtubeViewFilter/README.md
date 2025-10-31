@@ -4,7 +4,8 @@ Filter out YouTube videos that fall below a configurable view count threshold, h
 
 > **Version:** 1.0.0  
 > **Last Tested:** October 31, 2025  
-> **Status:** ✅ Working
+> **Status:** ✅ Working  
+> **Language Support:** 🇺🇸 English only (other languages coming soon)
 
 ## ✨ Features
 
