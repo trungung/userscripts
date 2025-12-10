@@ -1,10 +1,11 @@
 // ==UserScript==
 // @name        YouTube View Filter
-// @description Remove YouTube videos below view threshold (1000 views)
-// @version     1.0.0
+// @description Remove YouTube videos below view threshold
+// @version     2.1.1
 // @author      trungung
 // @match       *://www.youtube.com/*
 // @grant       none
+// @run-at      document-start
 // @namespace   https://github.com/trungung/userscripts
 // @homepage    https://github.com/trungung/userscripts/tree/main/scripts/youtubeViewFilter
 // @noframes
@@ -21,273 +22,130 @@ const CONFIG = {
 };
 
 const logger = {
-  prefix: "[YT-FILTER]",
-  log: function (message, ...args) {
-    if (CONFIG.enableLogging) {
-      console.log(`${this.prefix} ${message}`, ...args);
-    }
-  },
-  info: function (message, ...args) {
-    if (CONFIG.enableLogging) {
-      console.info(`${this.prefix} ℹ️ ${message}`, ...args);
-    }
-  },
-  warn: function (message, ...args) {
-    if (CONFIG.enableLogging) {
-      console.warn(`${this.prefix} ⚠️ ${message}`, ...args);
-    }
-  },
-  debug: function (message, ...args) {
-    if (CONFIG.enableLogging) {
-      console.debug(`${this.prefix} 🔍 ${message}`, ...args);
-    }
-  },
-  removed: function (videoTitle, channelName, viewCount) {
-    if (CONFIG.enableLogging) {
-      console.log(
-        `${this.prefix} 🗑️ Removed: "${videoTitle}" by "${channelName}" (${viewCount} views < ${CONFIG.viewThreshold} threshold)`
-      );
-    }
-  },
+  log: (msg, ...args) =>
+    CONFIG.enableLogging && console.log(`[YT-FILTER] ${msg}`, ...args),
 };
 
-function isChannelWhitelisted(channelName) {
-  if (!channelName) return false;
-  return CONFIG.whitelistedChannels.some((whitelisted) =>
-    channelName.toLowerCase().includes(whitelisted.toLowerCase())
-  );
-}
+// --- 1. Parsing Logic ---
 
-function getVideoTitle(videoElement) {
-  const titleSelectors = [
-    ".yt-lockup-metadata-view-model__title",
-    ".shortsLockupViewModelHostMetadataTitle",
-    "#video-title",
-    'h3 a[href*="/watch"]',
-    "a[aria-label]",
-  ];
+function parseViewCount(text) {
+  if (!text) return null;
+  const clean = text.toLowerCase().replace(/,/g, "");
 
-  for (const selector of titleSelectors) {
-    const titleElement = videoElement.querySelector(selector);
-    if (titleElement) {
-      return (
-        titleElement.textContent ||
-        titleElement.getAttribute("aria-label") ||
-        "Unknown Title"
-      );
-    }
-  }
-  return "Unknown Title";
-}
+  // Return -1 to signal Livestreams/Premieres (do not filter)
+  if (clean.includes("watching") || clean.includes("premiere")) return -1;
+  if (clean.includes("no views")) return 0;
 
-function getChannelName(videoElement) {
-  const channelSelectors = [
-    'a[href*="/@"]',
-    'a[href*="/channel/"]',
-    'a[href*="/c/"]',
-    ".yt-core-attributed-string__link",
-    ".channel-name",
-  ];
+  // Match number followed strictly by "views"
+  const match = clean.match(/(\d+(?:\.\d+)?)\s*([kmb])?\s*views?/);
+  if (!match) return null;
 
-  for (const selector of channelSelectors) {
-    const channelElement = videoElement.querySelector(selector);
-    if (channelElement) {
-      const channelText =
-        channelElement.textContent || channelElement.innerText;
-      if (
-        channelText &&
-        !channelText.toLowerCase().includes("views") &&
-        !channelText.toLowerCase().includes("ago")
-      ) {
-        return channelText.trim();
-      }
-    }
-  }
-  return "Unknown Channel";
-}
-
-function parseViewCount(viewText) {
-  if (!viewText) return 0;
-
-  // Remove commas and spaces
-  const cleanText = viewText.replace(/[,\s]/g, "").toLowerCase();
-
-  // Extract number and multiplier
-  const match = cleanText.match(/(\d+(?:\.\d+)?)(k|m|b)?views?/);
-  if (!match) return 0;
-
-  const number = parseFloat(match[1]);
+  let number = parseFloat(match[1]);
   const multiplier = match[2];
 
-  switch (multiplier) {
-    case "k":
-      return Math.floor(number * 1000);
-    case "m":
-      return Math.floor(number * 1000000);
-    case "b":
-      return Math.floor(number * 1000000000);
-    default:
-      return Math.floor(number);
-  }
+  if (multiplier === "k") number *= 1000;
+  else if (multiplier === "m") number *= 1000000;
+  else if (multiplier === "b") number *= 1000000000;
+
+  return Math.floor(number);
 }
 
-function processVideoElement(video) {
-  if (video.dataset.ytFilterProcessed === "true") {
+function getChannelName(node) {
+  const el = node.querySelector(
+    '.ytd-channel-name a, .yt-core-attributed-string__link, a[href^="/@"]'
+  );
+  return el ? el.textContent.trim() : "Unknown Channel";
+}
+
+function getVideoTitle(node) {
+  const selector =
+    "#video-title, #video-title-link, .yt-lockup-metadata-view-model__title, .shortsLockupViewModelHostMetadataTitle";
+  const el = node.querySelector(selector);
+  return el ? el.title || el.textContent.trim() : "Unknown Title";
+}
+
+// --- 2. Core Processing ---
+
+function processVideo(node) {
+  const allText = node.innerText || "";
+  const viewCount = parseViewCount(allText);
+
+  // If null, text hasn't loaded yet; retry next cycle
+  if (viewCount === null) return;
+
+  // If -1, it's a livestream; ignore it
+  if (viewCount === -1) {
+    node.dataset.ytFilterState = "live-stream";
     return;
   }
 
-  // Mark as processed immediately to prevent duplicate processing
-  video.dataset.ytFilterProcessed = "true";
+  // Prevent reprocessing same state
+  const videoUrl = node.querySelector("a#thumbnail")?.href || "unknown";
+  const stateSignature = `${videoUrl}-${viewCount}`;
+  if (node.dataset.ytFilterState === stateSignature) return;
+  node.dataset.ytFilterState = stateSignature;
 
-  const videoTitle = getVideoTitle(video);
-  const channelName = getChannelName(video);
-
-  logger.debug(`Processing: "${videoTitle}" by "${channelName}"`);
-
-  if (isChannelWhitelisted(channelName)) {
-    logger.debug(`Skipped (whitelisted): "${channelName}"`);
-    return;
-  }
-
-  // Find view count in the metadata - different selectors for different video types
-  let viewElements;
-  if (video.matches("ytm-shorts-lockup-view-model")) {
-    viewElements = video.querySelectorAll(
-      ".shortsLockupViewModelHostOutsideMetadataSubhead, .yt-core-attributed-string"
-    );
-  } else if (
-    video.matches(
-      "ytd-video-renderer, ytd-grid-video-renderer, ytd-compact-video-renderer"
+  // Check Whitelist
+  const channelName = getChannelName(node);
+  if (
+    CONFIG.whitelistedChannels.some((c) =>
+      channelName.toLowerCase().includes(c.toLowerCase())
     )
   ) {
-    viewElements = video.querySelectorAll(
-      'span[aria-label*="views"], #metadata-line span, .ytd-video-meta-block span'
-    );
-  } else {
-    // Default for ytd-rich-item-renderer and others
-    viewElements = video.querySelectorAll(
-      ".yt-content-metadata-view-model__metadata-text, .yt-core-attributed-string"
-    );
+    return;
   }
 
-  let viewCount = 0;
-  let found = false;
+  // Determine container (handle Shorts structure differences)
+  let container = node;
+  if (node.tagName.toLowerCase().includes("shorts")) {
+    container = node.closest("ytd-rich-item-renderer") || node;
+  }
 
-  viewElements.forEach((element) => {
-    const text = element.textContent || element.innerText;
-    if (text && text.toLowerCase().includes("views")) {
-      viewCount = parseViewCount(text);
-      found = true;
-    }
-  });
-
-  if (found && viewCount < CONFIG.viewThreshold) {
-    logger.removed(videoTitle, channelName, viewCount);
-
-    // For shorts, hide the parent container
-    if (video.matches("ytm-shorts-lockup-view-model")) {
-      const parentItem = video.closest("ytd-rich-item-renderer");
-      if (parentItem) {
-        parentItem.style.display = "none";
-      }
-    } else {
-      video.style.display = "none";
-    }
+  // Apply Filter
+  if (viewCount < CONFIG.viewThreshold) {
+    const videoTitle = getVideoTitle(node);
+    container.style.display = "none";
+    logger.log(`Removed: ${viewCount} | "${videoTitle}" | ${channelName}`);
+  } else {
+    container.style.display = "";
   }
 }
 
-function processExistingVideos() {
-  logger.info("Processing existing videos...");
-
-  const selectors = [
+function scan() {
+  const selector = [
     "ytd-rich-item-renderer",
-    "ytm-shorts-lockup-view-model",
-    "ytd-video-renderer",
     "ytd-grid-video-renderer",
     "ytd-compact-video-renderer",
-  ];
+    "ytd-video-renderer",
+    "ytm-shorts-lockup-view-model",
+  ].join(",");
 
-  selectors.forEach((selector) => {
-    const videos = document.querySelectorAll(selector);
-    videos.forEach((video) => processVideoElement(video));
-  });
+  const nodes = document.querySelectorAll(selector);
+  nodes.forEach(processVideo);
 }
 
-function clearAllProcessedFlags() {
-  logger.info("Clearing all processed flags...");
+// --- 3. Initialization & Events ---
 
-  const allVideos = document.querySelectorAll(
-    '[data-yt-filter-processed="true"]'
-  );
-  allVideos.forEach((video) => {
-    delete video.dataset.ytFilterProcessed;
-  });
+function init() {
+  logger.log("Started");
+
+  // Watch for new elements
+  const observer = new MutationObserver(() => scan());
+  observer.observe(document.body, { childList: true, subtree: true });
+
+  // Fallback interval for text updates (Back button fix)
+  setInterval(scan, 1500);
 }
 
-function observeAndFilter() {
-  // Initial filter for existing videos
-  processExistingVideos();
-
-  logger.info("Starting MutationObserver...");
-
-  // Create observer for dynamic content loading
-  const observer = new MutationObserver((mutations) => {
-    mutations.forEach((mutation) => {
-      if (mutation.type === "childList" && mutation.addedNodes.length > 0) {
-        mutation.addedNodes.forEach((node) => {
-          if (node.nodeType === Node.ELEMENT_NODE) {
-            // Check if the added node itself is a video element
-            if (
-              node.matches &&
-              (node.matches("ytd-rich-item-renderer") ||
-                node.matches("ytm-shorts-lockup-view-model") ||
-                node.matches("ytd-video-renderer") ||
-                node.matches("ytd-grid-video-renderer") ||
-                node.matches("ytd-compact-video-renderer"))
-            ) {
-              // Process this specific video immediately
-              processVideoElement(node);
-            }
-
-            // Also check if the node contains any video elements
-            if (node.querySelectorAll) {
-              const videoSelectors = [
-                "ytd-rich-item-renderer",
-                "ytm-shorts-lockup-view-model",
-                "ytd-video-renderer",
-                "ytd-grid-video-renderer",
-                "ytd-compact-video-renderer",
-              ];
-
-              videoSelectors.forEach((selector) => {
-                const videos = node.querySelectorAll(selector);
-                videos.forEach((video) => processVideoElement(video));
-              });
-            }
-          }
-        });
-      }
-    });
-  });
-
-  observer.observe(document.body, {
-    childList: true,
-    subtree: true,
-  });
-}
-
-// Initialize when page loads
-if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", observeAndFilter);
-} else {
-  observeAndFilter();
-}
-
+// Handle Single Page Navigation (SPA)
 window.addEventListener("yt-navigate-finish", () => {
-  logger.info("YouTube navigation detected");
-  // Clear all processed flags and re-evaluate videos after navigation
-  clearAllProcessedFlags();
-  setTimeout(processExistingVideos, 1000);
+  const allNodes = document.querySelectorAll("[data-yt-filter-state]");
+  allNodes.forEach((n) => delete n.dataset.ytFilterState);
+  scan();
 });
 
-logger.log("✅ Loaded - filtering video with config", CONFIG);
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", init);
+} else {
+  init();
+}
