@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name        YouTube View Filter
 // @description Remove YouTube videos below view threshold
-// @version     2.1.1
+// @version     2.2.0
 // @author      trungung
 // @match       *://www.youtube.com/*
 // @grant       none
@@ -22,8 +22,11 @@ const CONFIG = {
 };
 
 const logger = {
-  log: (msg, ...args) =>
-    CONFIG.enableLogging && console.log(`[YT-FILTER] ${msg}`, ...args),
+  log: (msg, ...args) => {
+    if (CONFIG.enableLogging) {
+      console.log(`[YT-FILTER] ${msg}`, ...args);
+    }
+  },
 };
 
 // --- 1. Parsing Logic ---
@@ -33,10 +36,19 @@ function parseViewCount(text) {
   const clean = text.toLowerCase().replace(/,/g, "");
 
   // Return -1 to signal Livestreams/Premieres (do not filter)
-  if (clean.includes("watching") || clean.includes("premiere")) return -1;
+  if (
+    clean.includes("watching") ||
+    clean.includes("premiere") ||
+    clean.includes("live") ||
+    clean.includes("waiting")
+  ) {
+    return -1;
+  }
+
   if (clean.includes("no views")) return 0;
 
   // Match number followed strictly by "views"
+  // Handles: "10K views", "1.5M views", "300 views"
   const match = clean.match(/(\d+(?:\.\d+)?)\s*([kmb])?\s*views?/);
   if (!match) return null;
 
@@ -51,15 +63,16 @@ function parseViewCount(text) {
 }
 
 function getChannelName(node) {
+  // Selectors for Home, Search, and Sidebar (Compact)
   const el = node.querySelector(
-    '.ytd-channel-name a, .yt-core-attributed-string__link, a[href^="/@"]'
+    '.ytd-channel-name a, .yt-core-attributed-string__link, a[href^="/@"], .ytd-compact-video-renderer .ytd-channel-name'
   );
   return el ? el.textContent.trim() : "Unknown Channel";
 }
 
 function getVideoTitle(node) {
   const selector =
-    "#video-title, #video-title-link, .yt-lockup-metadata-view-model__title, .shortsLockupViewModelHostMetadataTitle";
+    "#video-title, #video-title-link, .yt-lockup-metadata-view-model__title, .shortsLockupViewModelHostMetadataTitle, h3";
   const el = node.querySelector(selector);
   return el ? el.title || el.textContent.trim() : "Unknown Title";
 }
@@ -67,10 +80,13 @@ function getVideoTitle(node) {
 // --- 2. Core Processing ---
 
 function processVideo(node) {
+  // If the node is hidden by YouTube or empty, skip
+  if (node.offsetParent === null) return;
+
   const allText = node.innerText || "";
   const viewCount = parseViewCount(allText);
 
-  // If null, text hasn't loaded yet; retry next cycle
+  // If null, text hasn't loaded yet or it's a Mix/Playlist; retry next cycle
   if (viewCount === null) return;
 
   // If -1, it's a livestream; ignore it
@@ -79,9 +95,11 @@ function processVideo(node) {
     return;
   }
 
-  // Prevent reprocessing same state
-  const videoUrl = node.querySelector("a#thumbnail")?.href || "unknown";
+  // Prevent reprocessing same state to save performance
+  const videoUrl =
+    node.querySelector("a#thumbnail, a.ytd-thumbnail")?.href || "unknown";
   const stateSignature = `${videoUrl}-${viewCount}`;
+
   if (node.dataset.ytFilterState === stateSignature) return;
   node.dataset.ytFilterState = stateSignature;
 
@@ -95,8 +113,10 @@ function processVideo(node) {
     return;
   }
 
-  // Determine container (handle Shorts structure differences)
+  // Determine container (Fix for Shorts and Sidebar Layouts)
   let container = node;
+
+  // If it's a Short in a grid, find the renderer
   if (node.tagName.toLowerCase().includes("shorts")) {
     container = node.closest("ytd-rich-item-renderer") || node;
   }
@@ -107,17 +127,19 @@ function processVideo(node) {
     container.style.display = "none";
     logger.log(`Removed: ${viewCount} | "${videoTitle}" | ${channelName}`);
   } else {
+    // Ensure it is visible if it meets criteria (in case it was hidden previously)
     container.style.display = "";
   }
 }
 
 function scan() {
   const selector = [
-    "ytd-rich-item-renderer",
-    "ytd-grid-video-renderer",
-    "ytd-compact-video-renderer",
-    "ytd-video-renderer",
-    "ytm-shorts-lockup-view-model",
+    "ytd-rich-item-renderer", // Home Feed
+    "ytd-grid-video-renderer", // Channel Videos
+    "ytd-compact-video-renderer", // Sidebar (Classic)
+    "ytd-video-renderer", // Search Results
+    "ytm-shorts-lockup-view-model", // Shorts
+    "yt-lockup-view-model", // New UI (Sidebar & Home Mixed)
   ].join(",");
 
   const nodes = document.querySelectorAll(selector);
@@ -133,12 +155,13 @@ function init() {
   const observer = new MutationObserver(() => scan());
   observer.observe(document.body, { childList: true, subtree: true });
 
-  // Fallback interval for text updates (Back button fix)
-  setInterval(scan, 1500);
+  // Fallback interval (helps with slow sidebar loads)
+  setInterval(scan, 2000);
 }
 
 // Handle Single Page Navigation (SPA)
 window.addEventListener("yt-navigate-finish", () => {
+  // Clear states so we re-scan properly on new page
   const allNodes = document.querySelectorAll("[data-yt-filter-state]");
   allNodes.forEach((n) => delete n.dataset.ytFilterState);
   scan();
